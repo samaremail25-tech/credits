@@ -69,6 +69,22 @@ svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stro
 .of{color:var(--muted);font-size:13.5px;margin-top:6px}
 .used{color:var(--faint);font-size:13px;margin-top:2px}
 
+.searchbar{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 16px;margin-bottom:18px}
+.searchbar[hidden]{display:none}
+.searchbar:focus-within{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-soft)}
+.searchbar input{flex:1;min-width:0;border:0;outline:0;background:none;color:var(--ink);padding:8px 0}
+.searchbar .count{color:var(--muted);font-size:13px;white-space:nowrap}
+.nomatch{background:var(--card);border:1px dashed #D3D7DE;border-radius:16px;padding:36px 24px;text-align:center;color:var(--muted)}
+.tok{display:flex;align-items:center;gap:2px;background:#F5F6F8;border:1px solid var(--line);border-radius:10px;padding:2px 4px 2px 12px;margin-top:-6px}
+.tok-text{flex:1;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tok-text.open{white-space:normal;word-break:break-all;color:var(--ink);padding:7px 0}
+.tok .ib{padding:7px}
+.nums{display:flex;flex-direction:column;gap:10px;flex:1}
+.rem span{display:block;color:var(--muted);font-size:13px;font-weight:600;margin-bottom:3px}
+.rem b{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.kv span{color:var(--muted);font-size:13px;font-weight:600}
+.kv b{font-size:15px;font-weight:700}
 .card-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:12.5px;gap:8px}
 .card-foot b{color:var(--ink);font-weight:600}
 .err{background:#FDECEC;color:#B42318;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:500;line-height:1.4}
@@ -113,16 +129,22 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
       <div class="sub" id="updated">Add an account to get started.</div>
     </div>
     <div class="actions">
+      <button class="btn" id="searchBtn"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find by token</button>
       <button class="btn" id="refreshAll"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh all</button>
       <button class="btn primary" id="addBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add account</button>
     </div>
   </header>
 
+  <div class="searchbar" id="searchbar" hidden>
+    <input id="q" type="text" placeholder="Paste a token or any part of it" autocomplete="off" spellcheck="false" aria-label="Find account by token">
+    <span class="count" id="qCount"></span>
+    <button class="btn" id="qClear">Clear</button>
+  </div>
   <section class="summary" id="summary" hidden></section>
   <main id="board"></main>
 
   <footer>
-    <span><span id="sync">Starting...</span> Tokens are encrypted in your browser with your passphrase before they are saved to the cloud, and are only ever used to call api.apify.com.</span>
+    <span id="sync" hidden></span>
     <span><button id="exportBtn">Export backup</button> &nbsp; <button id="importBtn">Import backup</button> &nbsp; <button id="lockBtn">Lock this device</button></span>
   </footer>
 </div>
@@ -131,7 +153,7 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
   <form method="dialog" class="dlg" id="form" autocomplete="off">
     <h2>Add account</h2>
     <p>Find the token in Apify Console under Settings, then Integrations.</p>
-    <div class="field"><label for="email">Gmail account</label><input id="email" type="email" placeholder="name@gmail.com" required></div>
+    <div class="field"><label for="email">Gmail account</label><input id="email" type="text" autocapitalize="off" spellcheck="false" placeholder="samaremail25 or samaremail25@gmail.com" required></div>
     <div class="field"><label for="token">Apify API token</label><input id="token" type="password" placeholder="apify_api_..." required></div>
     <div class="dlg-err" id="dlgErr"></div>
     <div class="dlg-actions">
@@ -169,7 +191,7 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
 <script>
 (function(){
   var KEY = 'apify-credit-tracker-v1';
-  var accounts = [];
+  var accounts = [], query = '';
   try { accounts = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e){ accounts = []; }
   accounts.forEach(function(a){ a.loading = false; });
 
@@ -179,7 +201,10 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
 
   var PASS_KEY = 'apify-credit-tracker-pass', docRef = null, cryptoKey = null, salt = null, saveT = null;
   var enc = new TextEncoder(), dec = new TextDecoder();
-  function setSync(t){ $('sync').textContent = t; }
+  function setSync(t){
+    var show = /failed|Locked|only/.test(t), el = $('sync');
+    el.textContent = show ? t : ''; el.hidden = !show;
+  }
   function serialize(){
     return accounts.map(function(a){ return { id:a.id, email:a.email, token:a.token, data:a.data, fetchedAt:a.fetchedAt, error:a.error }; });
   }
@@ -276,11 +301,34 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
   }
 
   // ---- Render ----
+  var ICON_EYE = '<svg class="i" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var ICON_EYEOFF = '<svg class="i" viewBox="0 0 24 24"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19c-6.5 0-10-7-10-7a17.7 17.7 0 0 1 4.1-5"/><path d="M9.9 5.2A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17.8 17.8 0 0 1-2.2 3.2"/><path d="M1 1l22 22"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+  var ICON_COPY = '<svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+
+  function tokenRow(a){
+    var shown = a.showToken;
+    return '<div class="tok"><span class="tok-text' + (shown ? ' open' : '') + '">' + (shown ? esc(a.token) : '&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;' + esc(a.token.slice(-4))) + '</span>' +
+      '<button class="ib" data-act="toggle-token" data-id="' + a.id + '" aria-label="' + (shown ? 'Hide' : 'View') + ' API token" title="' + (shown ? 'Hide' : 'View') + '">' + (shown ? ICON_EYEOFF : ICON_EYE) + '</button>' +
+      '<button class="ib" data-act="copy-token" data-id="' + a.id + '" aria-label="Copy API token" title="Copy">' + ICON_COPY + '</button></div>';
+  }
+  function copyText(t){
+    function done(){ toast('API token copied'); }
+    function fallback(){
+      var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch(e){ toast('Could not copy the token'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(done, fallback);
+    else fallback();
+  }
+
   function card(a){
     var h = '<div class="card"><div class="card-top"><div class="acct"><div class="acct-name">' + esc(a.email) + '</div>';
-    h += '<div class="acct-sub">Token ending ' + esc(a.token.slice(-4)) + '</div></div><div class="icons">';
+    h += '</div><div class="icons">';
     h += '<button class="ib" data-act="refresh" data-id="' + a.id + '" aria-label="Refresh ' + esc(a.email) + '"' + (a.loading ? ' disabled' : '') + '>' + (a.loading ? ICON_REFRESH.replace('class="i"', 'class="i spin"') : ICON_REFRESH) + '</button>';
     h += '<button class="ib del" data-act="remove" data-id="' + a.id + '" aria-label="Remove ' + esc(a.email) + '">' + ICON_TRASH + '</button></div></div>';
+    h += tokenRow(a);
 
     if (a.data){
       var left = Math.max(0, a.data.max - a.data.used), pct = a.data.max > 0 ? left / a.data.max : 0;
@@ -288,7 +336,7 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
       h += '<div class="gauge"><div class="ring"><svg viewBox="0 0 104 104"><circle class="track" cx="52" cy="52" r="45"/>';
       h += '<circle class="val" cx="52" cy="52" r="45" stroke="' + colorFor(pct) + '" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - pct)).toFixed(1) + '"/></svg>';
       h += '<div class="ring-text"><b>' + Math.round(pct * 100) + '%</b><span>left</span></div></div>';
-      h += '<div class="nums"><div class="left">' + money(left) + '</div><div class="of">of ' + money(a.data.max) + ' this cycle</div><div class="used">' + money(a.data.used) + ' used</div></div></div>';
+      h += '<div class="nums"><div class="rem"><span>Remaining</span><b>' + money(left) + '</b></div><div class="kv"><span>Total</span><b>' + money(a.data.max) + '</b></div></div></div>';
       if (a.error) h += '<div class="err">' + esc(a.error) + ' Showing the last known numbers.</div>';
       h += '<div class="card-foot"><span>Resets <b>' + r.date + '</b> (' + (r.days <= 0 ? 'today' : r.days + (r.days === 1 ? ' day' : ' days')) + ')</span><span>' + ago(a.fetchedAt) + '</span></div>';
     } else if (a.error){
@@ -336,20 +384,33 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
       var la = a.data ? a.data.max - a.data.used : -1, lb = b.data ? b.data.max - b.data.used : -1;
       return lb - la;
     });
-    board.innerHTML = '<div class="grid">' + sorted.map(card).join('') + '</div>';
+    var shownList = query ? sorted.filter(function(a){ return a.token.toLowerCase().indexOf(query) !== -1; }) : sorted;
+    $('qCount').textContent = query ? shownList.length + ' of ' + accounts.length + ' match' : '';
+    board.innerHTML = shownList.length
+      ? '<div class="grid">' + shownList.map(card).join('') + '</div>'
+      : '<div class="nomatch">No account has a token containing that text.</div>';
   }
 
   // ---- Events ----
   $('addBtn').onclick = function(){ openDlg(); };
   $('refreshAll').onclick = refreshAll;
+  $('searchBtn').onclick = function(){
+    var bar = $('searchbar');
+    if (bar.hidden){ bar.hidden = false; $('q').focus(); }
+    else { bar.hidden = true; $('q').value = ''; query = ''; render(); }
+  };
+  $('q').addEventListener('input', function(){ query = this.value.trim().toLowerCase(); render(); });
+  $('qClear').onclick = function(){ $('q').value = ''; query = ''; render(); $('q').focus(); };
   $('cancel').onclick = function(){ $('dlg').close(); };
 
   function openDlg(){ $('form').reset(); $('dlgErr').textContent = ''; $('dlg').showModal(); $('email').focus(); }
 
   $('form').addEventListener('submit', function(e){
     e.preventDefault();
-    var email = $('email').value.trim(), token = $('token').value.trim();
+    var email = $('email').value.trim().toLowerCase(), token = $('token').value.trim();
     if (!email || !token) return;
+    if (email.indexOf('@') === -1) email += '@gmail.com';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ $('dlgErr').textContent = 'Enter a valid Gmail name or full email address.'; return; }
     if (accounts.some(function(a){ return a.email.toLowerCase() === email.toLowerCase(); })){
       $('dlgErr').textContent = 'This account is already in your list.'; return;
     }
@@ -366,6 +427,8 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
     var acc = accounts.filter(function(a){ return a.id === id; })[0];
     if (act === 'add') openDlg();
     else if (act === 'refresh' && acc) fetchOne(acc);
+    else if (act === 'toggle-token' && acc){ acc.showToken = !acc.showToken; render(); }
+    else if (act === 'copy-token' && acc) copyText(acc.token);
     else if (act === 'remove' && acc && confirm('Remove ' + acc.email + ' from the tracker?')){
       accounts = accounts.filter(function(a){ return a.id !== id; }); save(); render(); toast('Account removed');
     }
