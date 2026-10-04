@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apify Credit Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F6F8; --card:#fff; --ink:#16181D; --muted:#6B7280; --faint:#9AA1AD; --line:#E6E8EC;
+  --orange:#FF6A00; --orange-hover:#E85F00; --orange-soft:#FFF1E6;
+  --good:#1F9D63; --warn:#E39A00; --bad:#E5484D;
+  --font:'Manrope',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;-webkit-font-smoothing:antialiased}
+button,input{font-family:inherit;font-size:inherit}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 20px 56px}
+
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:28px}
+h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.02em}
+.sub{color:var(--muted);margin-top:4px;font-size:14px}
+.actions{display:flex;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);transition:background .15s,border-color .15s}
+.btn:hover{border-color:#cfd3da;background:#fafafa}
+.btn.primary{background:var(--orange);border-color:var(--orange);color:#fff}
+.btn.primary:hover{background:var(--orange-hover);border-color:var(--orange-hover)}
+.btn:disabled{opacity:.6;cursor:default}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.summary{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px 28px;margin-bottom:22px;display:grid;grid-template-columns:1.3fr 1fr;gap:28px;align-items:center}
+.sum-label{color:var(--muted);font-weight:600;font-size:14px}
+.sum-big{font-size:52px;font-weight:800;letter-spacing:-.04em;line-height:1.05;margin:6px 0 4px}
+.sum-big small{font-size:22px;color:var(--faint);font-weight:700;letter-spacing:-.01em}
+.sum-note{color:var(--muted);font-size:13.5px}
+.pool{height:12px;border-radius:99px;background:#EEF0F3;overflow:hidden;display:flex}
+.pool span{height:100%;transition:width .5s ease}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;color:var(--muted);font-size:13px}
+.legend b{color:var(--ink)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.acct{min-width:0}
+.acct-name{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-sub{color:var(--faint);font-size:12.5px;margin-top:2px}
+.icons{display:flex;gap:2px;flex-shrink:0;margin:-6px -6px 0 0}
+.ib{background:none;border:0;color:var(--faint);padding:8px;border-radius:8px;cursor:pointer;display:flex}
+.ib:hover{background:#F1F2F4;color:var(--ink)}
+.ib.del:hover{color:var(--bad);background:#FDECEC}
+
+.gauge{display:flex;align-items:center;gap:20px}
+.ring{position:relative;width:104px;height:104px;flex-shrink:0}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:10;stroke-linecap:round}
+.ring .track{stroke:#EEF0F3}
+.ring .val{transition:stroke-dashoffset .6s ease,stroke .3s}
+.ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1}
+.ring-text b{font-size:20px;font-weight:800;letter-spacing:-.02em}
+.ring-text span{font-size:11.5px;color:var(--faint);margin-top:2px}
+.nums{min-width:0}
+.left{font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.of{color:var(--muted);font-size:13.5px;margin-top:6px}
+.used{color:var(--faint);font-size:13px;margin-top:2px}
+
+.card-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:12.5px;gap:8px}
+.card-foot b{color:var(--ink);font-weight:600}
+.err{background:#FDECEC;color:#B42318;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:500;line-height:1.4}
+.skeleton{height:104px;border-radius:12px;background:linear-gradient(90deg,#F1F2F4,#F8F9FA,#F1F2F4);background-size:200% 100%;animation:sh 1.2s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+
+.empty{background:var(--card);border:1px dashed #D3D7DE;border-radius:18px;padding:52px 24px;text-align:center}
+.empty h2{margin:0 0 6px;font-size:18px}
+.empty p{margin:0 0 20px;color:var(--muted)}
+
+footer{margin-top:28px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--faint);font-size:12.5px;line-height:1.5}
+footer button{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;padding:0}
+
+dialog{border:0;border-radius:18px;padding:0;width:min(440px,calc(100vw - 32px));box-shadow:0 24px 64px rgba(16,24,40,.22)}
+dialog::backdrop{background:rgba(22,24,29,.4)}
+.dlg{padding:26px}
+.dlg h2{margin:0 0 4px;font-size:19px}
+.dlg p{margin:0 0 18px;color:var(--muted);font-size:13.5px}
+.field{margin-bottom:14px}
+.field label{display:block;font-weight:600;font-size:13px;margin-bottom:6px}
+.field input{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:#fff;color:var(--ink)}
+.field input:focus{border-color:var(--orange);outline:none;box-shadow:0 0 0 3px var(--orange-soft)}
+.dlg-err{color:var(--bad);font-size:13px;margin-bottom:12px;min-height:0}
+.dlg-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-weight:600;font-size:13.5px;opacity:0;pointer-events:none;transition:.25s}
+.toast.show{opacity:1;transform:translateX(-50%)}
+
+@media(max-width:700px){
+  .summary{grid-template-columns:1fr;padding:22px}
+  .sum-big{font-size:42px}
+  .actions{width:100%}.actions .btn{flex:1;justify-content:center}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Apify credit tracker</h1>
+      <div class="sub" id="updated">Add an account to get started.</div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="refreshAll"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh all</button>
+      <button class="btn primary" id="addBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add account</button>
+    </div>
+  </header>
+
+  <section class="summary" id="summary" hidden></section>
+  <main id="board"></main>
+
+  <footer>
+    <span><span id="sync">Starting...</span> Tokens are encrypted in your browser with your passphrase before they are saved to the cloud, and are only ever used to call api.apify.com.</span>
+    <span><button id="exportBtn">Export backup</button> &nbsp; <button id="importBtn">Import backup</button> &nbsp; <button id="lockBtn">Lock this device</button></span>
+  </footer>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog" class="dlg" id="form" autocomplete="off">
+    <h2>Add account</h2>
+    <p>Find the token in Apify Console under Settings, then Integrations.</p>
+    <div class="field"><label for="email">Gmail account</label><input id="email" type="email" placeholder="name@gmail.com" required></div>
+    <div class="field"><label for="token">Apify API token</label><input id="token" type="password" placeholder="apify_api_..." required></div>
+    <div class="dlg-err" id="dlgErr"></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn" id="cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="save">Save account</button>
+    </div>
+  </form>
+</dialog>
+<input type="file" id="file" accept="application/json" hidden>
+<dialog id="unlock">
+  <form class="dlg" id="unlockForm" autocomplete="off">
+    <h2>Unlock your accounts</h2>
+    <p>Enter your passphrase. Use the same one on every device. The first time, whatever you type becomes your passphrase, so remember it: it cannot be recovered.</p>
+    <div class="field"><label for="pass">Passphrase</label><input id="pass" type="password" required></div>
+    <div class="dlg-err" id="passErr"></div>
+    <div class="dlg-actions"><button type="submit" class="btn primary" id="unlockBtn">Unlock</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast"></div>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script>
+  try {
+    firebase.initializeApp({
+      apiKey: "AIzaSyA3GIq3HOF351BF1ivqsruyf9bt8eSioE8",
+      authDomain: "antigravity-tracker-c119c.firebaseapp.com",
+      projectId: "antigravity-tracker-c119c",
+      storageBucket: "antigravity-tracker-c119c.firebasestorage.app",
+      messagingSenderId: "78078713102",
+      appId: "1:78078713102:web:64ae7e088229ab49ae0b5f"
+    });
+  } catch(e) {}
+</script>
+
+<script>
+(function(){
+  var KEY = 'apify-credit-tracker-v1';
+  var accounts = [];
+  try { accounts = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e){ accounts = []; }
+  accounts.forEach(function(a){ a.loading = false; });
+
+  var $ = function(id){ return document.getElementById(id); };
+  var ICON_REFRESH = '<svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
+  var ICON_TRASH = '<svg class="i" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+
+  var PASS_KEY = 'apify-credit-tracker-pass', docRef = null, cryptoKey = null, salt = null, saveT = null;
+  var enc = new TextEncoder(), dec = new TextDecoder();
+  function setSync(t){ $('sync').textContent = t; }
+  function serialize(){
+    return accounts.map(function(a){ return { id:a.id, email:a.email, token:a.token, data:a.data, fetchedAt:a.fetchedAt, error:a.error }; });
+  }
+  function b64(buf){ var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
+  function unb64(s){ var r = atob(s), b = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) b[i] = r.charCodeAt(i); return b; }
+  function deriveKey(pass, saltBytes){
+    return crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']).then(function(base){
+      return crypto.subtle.deriveKey({ name:'PBKDF2', salt:saltBytes, iterations:200000, hash:'SHA-256' }, base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
+    });
+  }
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify(serialize())); } catch(e){}
+    if (!docRef || !cryptoKey) return;
+    clearTimeout(saveT); setSync('Saving...');
+    saveT = setTimeout(function(){
+      var iv = crypto.getRandomValues(new Uint8Array(12));
+      crypto.subtle.encrypt({ name:'AES-GCM', iv:iv }, cryptoKey, enc.encode(JSON.stringify(serialize())))
+        .then(function(ct){ return docRef.set({ salt:b64(salt), iv:b64(iv), ct:b64(ct), updatedAt:Date.now() }); })
+        .then(function(){ setSync('Synced across devices.'); })
+        .catch(function(){ setSync('Cloud sync failed. Check your Firestore rules and connection.'); });
+    }, 800);
+  }
+  function connect(pass){
+    return docRef.get().catch(function(){ throw new Error('cloud'); }).then(function(snap){
+      if (snap.exists && snap.data().ct){
+        var d = snap.data(); salt = unb64(d.salt);
+        return deriveKey(pass, salt).then(function(k){
+          cryptoKey = k;
+          return crypto.subtle.decrypt({ name:'AES-GCM', iv:unb64(d.iv) }, k, unb64(d.ct));
+        }).then(function(buf){
+          accounts = JSON.parse(dec.decode(buf)).map(function(a){ a.loading = false; return a; });
+        }, function(){ cryptoKey = null; throw new Error('wrong'); });
+      }
+      salt = crypto.getRandomValues(new Uint8Array(16));
+      return deriveKey(pass, salt).then(function(k){ cryptoKey = k; });
+    }).then(function(){
+      try { localStorage.setItem(PASS_KEY, pass); } catch(e){}
+      save();
+    });
+  }
+  function tryUnlock(pass){
+    $('unlockBtn').disabled = true;
+    return connect(pass).then(function(){
+      if ($('unlock').open) $('unlock').close();
+      render(); refreshAll();
+    }).catch(function(e){
+      $('passErr').textContent = e.message === 'wrong' ? 'That passphrase does not match the one used for your saved accounts.' : 'Could not reach the cloud database. Check your Firestore rules and connection.';
+      if (!$('unlock').open) $('unlock').showModal();
+      setSync('Locked.');
+    }).then(function(){ $('unlockBtn').disabled = false; });
+  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function money(n){ return '$' + n.toFixed(2); }
+  function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2200); }
+  function colorFor(pct){ return pct >= 0.5 ? 'var(--good)' : pct >= 0.2 ? 'var(--warn)' : 'var(--bad)'; }
+  function ago(ts){
+    var s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 10) return 'just now';
+    if (s < 60) return s + 's ago';
+    var m = Math.round(s / 60); if (m < 60) return m + 'm ago';
+    var h = Math.round(m / 60); if (h < 24) return h + 'h ago';
+    return Math.round(h / 24) + 'd ago';
+  }
+  function resetText(endAt){
+    var reset = new Date(endAt).getTime() + 1;
+    var days = Math.ceil((reset - Date.now()) / 86400000);
+    var d = new Date(reset).toLocaleDateString(undefined, { day:'numeric', month:'short' });
+    return { date: d, days: days };
+  }
+
+  // ---- API ----
+  function fetchOne(acc){
+    acc.loading = true; render();
+    return fetch('https://api.apify.com/v2/users/me/limits?token=' + encodeURIComponent(acc.token))
+      .then(function(r){
+        if (r.status === 401 || r.status === 403) throw new Error('Token was rejected. Check that it is correct and still active.');
+        if (!r.ok) throw new Error('Apify returned an error (' + r.status + '). Try again shortly.');
+        return r.json();
+      })
+      .then(function(j){
+        var d = j.data, max = d.limits.maxMonthlyUsageUsd, used = d.current.monthlyUsageUsd;
+        acc.data = { max:max, used:used, startAt:d.monthlyUsageCycle.startAt, endAt:d.monthlyUsageCycle.endAt };
+        acc.fetchedAt = Date.now(); acc.error = null;
+      })
+      .catch(function(e){
+        acc.error = (e instanceof TypeError) ? 'Could not reach Apify. Check your internet connection and try again.' : e.message;
+      })
+      .then(function(){ acc.loading = false; save(); render(); });
+  }
+  function refreshAll(){
+    if (!accounts.length) return;
+    var btn = $('refreshAll'); btn.disabled = true;
+    Promise.all(accounts.map(fetchOne)).then(function(){ btn.disabled = false; render(); });
+  }
+
+  // ---- Render ----
+  function card(a){
+    var h = '<div class="card"><div class="card-top"><div class="acct"><div class="acct-name">' + esc(a.email) + '</div>';
+    h += '<div class="acct-sub">Token ending ' + esc(a.token.slice(-4)) + '</div></div><div class="icons">';
+    h += '<button class="ib" data-act="refresh" data-id="' + a.id + '" aria-label="Refresh ' + esc(a.email) + '"' + (a.loading ? ' disabled' : '') + '>' + (a.loading ? ICON_REFRESH.replace('class="i"', 'class="i spin"') : ICON_REFRESH) + '</button>';
+    h += '<button class="ib del" data-act="remove" data-id="' + a.id + '" aria-label="Remove ' + esc(a.email) + '">' + ICON_TRASH + '</button></div></div>';
+
+    if (a.data){
+      var left = Math.max(0, a.data.max - a.data.used), pct = a.data.max > 0 ? left / a.data.max : 0;
+      var C = 2 * Math.PI * 45, r = resetText(a.data.endAt);
+      h += '<div class="gauge"><div class="ring"><svg viewBox="0 0 104 104"><circle class="track" cx="52" cy="52" r="45"/>';
+      h += '<circle class="val" cx="52" cy="52" r="45" stroke="' + colorFor(pct) + '" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - pct)).toFixed(1) + '"/></svg>';
+      h += '<div class="ring-text"><b>' + Math.round(pct * 100) + '%</b><span>left</span></div></div>';
+      h += '<div class="nums"><div class="left">' + money(left) + '</div><div class="of">of ' + money(a.data.max) + ' this cycle</div><div class="used">' + money(a.data.used) + ' used</div></div></div>';
+      if (a.error) h += '<div class="err">' + esc(a.error) + ' Showing the last known numbers.</div>';
+      h += '<div class="card-foot"><span>Resets <b>' + r.date + '</b> (' + (r.days <= 0 ? 'today' : r.days + (r.days === 1 ? ' day' : ' days')) + ')</span><span>' + ago(a.fetchedAt) + '</span></div>';
+    } else if (a.error){
+      h += '<div class="err">' + esc(a.error) + '</div>';
+    } else {
+      h += '<div class="skeleton"></div>';
+    }
+    return h + '</div>';
+  }
+
+  function render(){
+    var board = $('board'), sum = $('summary');
+    if (!accounts.length){
+      sum.hidden = true; $('refreshAll').disabled = true;
+      board.innerHTML = '<div class="empty"><h2>No accounts yet</h2><p>Add a Gmail account with its Apify token to see how many credits it has left.</p><button class="btn primary" data-act="add">Add your first account</button></div>';
+      $('updated').textContent = 'Add an account to get started.';
+      return;
+    }
+    $('refreshAll').disabled = accounts.some(function(a){ return a.loading; });
+
+    var withData = accounts.filter(function(a){ return a.data; });
+    var totalMax = 0, totalLeft = 0, buckets = { good:0, warn:0, bad:0 }, latest = 0;
+    withData.forEach(function(a){
+      var left = Math.max(0, a.data.max - a.data.used);
+      totalMax += a.data.max; totalLeft += left;
+      var p = a.data.max > 0 ? left / a.data.max : 0;
+      buckets[p >= .5 ? 'good' : p >= .2 ? 'warn' : 'bad'] += left;
+      if (a.fetchedAt > latest) latest = a.fetchedAt;
+    });
+    if (withData.length){
+      sum.hidden = false;
+      var pcts = { good:'var(--good)', warn:'var(--warn)', bad:'var(--bad)' };
+      var bar = ['good','warn','bad'].map(function(k){ return '<span style="width:' + (totalMax ? buckets[k] / totalMax * 100 : 0) + '%;background:' + pcts[k] + '"></span>'; }).join('');
+      var best = withData.slice().sort(function(a,b){ return (b.data.max - b.data.used) - (a.data.max - a.data.used); })[0];
+      sum.innerHTML = '<div><div class="sum-label">Total credits left</div><div class="sum-big">' + money(totalLeft) + ' <small>of ' + money(totalMax) + '</small></div>' +
+        '<div class="sum-note">Across ' + withData.length + (withData.length === 1 ? ' account' : ' accounts') + '. Most remaining: ' + esc(best.email) + '</div></div>' +
+        '<div><div class="pool">' + bar + '</div><div class="legend"><span><i class="dot" style="background:var(--good)"></i>Healthy <b>' + money(buckets.good) + '</b></span><span><i class="dot" style="background:var(--warn)"></i>Running low <b>' + money(buckets.warn) + '</b></span><span><i class="dot" style="background:var(--bad)"></i>Almost out <b>' + money(buckets.bad) + '</b></span></div></div>';
+      $('updated').textContent = 'Last updated ' + ago(latest);
+    } else {
+      sum.hidden = true;
+      $('updated').textContent = 'Fetching your credits...';
+    }
+
+    var sorted = accounts.slice().sort(function(a,b){
+      var la = a.data ? a.data.max - a.data.used : -1, lb = b.data ? b.data.max - b.data.used : -1;
+      return lb - la;
+    });
+    board.innerHTML = '<div class="grid">' + sorted.map(card).join('') + '</div>';
+  }
+
+  // ---- Events ----
+  $('addBtn').onclick = function(){ openDlg(); };
+  $('refreshAll').onclick = refreshAll;
+  $('cancel').onclick = function(){ $('dlg').close(); };
+
+  function openDlg(){ $('form').reset(); $('dlgErr').textContent = ''; $('dlg').showModal(); $('email').focus(); }
+
+  $('form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var email = $('email').value.trim(), token = $('token').value.trim();
+    if (!email || !token) return;
+    if (accounts.some(function(a){ return a.email.toLowerCase() === email.toLowerCase(); })){
+      $('dlgErr').textContent = 'This account is already in your list.'; return;
+    }
+    if (accounts.some(function(a){ return a.token === token; })){
+      $('dlgErr').textContent = 'This token is already used by another account.'; return;
+    }
+    var acc = { id:'a' + Date.now() + Math.random().toString(36).slice(2,6), email:email, token:token, data:null, fetchedAt:0, error:null, loading:false };
+    accounts.push(acc); save(); $('dlg').close(); render(); fetchOne(acc);
+  });
+
+  document.addEventListener('click', function(e){
+    var el = e.target.closest('[data-act]'); if (!el) return;
+    var act = el.getAttribute('data-act'), id = el.getAttribute('data-id');
+    var acc = accounts.filter(function(a){ return a.id === id; })[0];
+    if (act === 'add') openDlg();
+    else if (act === 'refresh' && acc) fetchOne(acc);
+    else if (act === 'remove' && acc && confirm('Remove ' + acc.email + ' from the tracker?')){
+      accounts = accounts.filter(function(a){ return a.id !== id; }); save(); render(); toast('Account removed');
+    }
+  });
+
+  $('exportBtn').onclick = function(){
+    if (!accounts.length) return toast('Nothing to export yet');
+    var blob = new Blob([JSON.stringify(accounts.map(function(a){ return { email:a.email, token:a.token }; }), null, 2)], { type:'application/json' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'apify-tracker-backup.json'; a.click();
+    toast('Backup saved. It contains your tokens, so keep it private.');
+  };
+  $('importBtn').onclick = function(){ $('file').click(); };
+  $('file').onchange = function(){
+    var f = this.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      try {
+        var list = JSON.parse(rd.result), added = [];
+        list.forEach(function(x){
+          if (x.email && x.token && !accounts.some(function(a){ return a.email.toLowerCase() === x.email.toLowerCase(); })){
+            var acc = { id:'a' + Date.now() + Math.random().toString(36).slice(2,6), email:x.email, token:x.token, data:null, fetchedAt:0, error:null, loading:false };
+            accounts.push(acc); added.push(acc);
+          }
+        });
+        save(); render(); added.forEach(fetchOne); toast(added.length + ' account(s) imported');
+      } catch(err){ toast('That file is not a valid backup'); }
+    };
+    rd.readAsText(f); this.value = '';
+  };
+
+  $('unlockForm').addEventListener('submit', function(e){ e.preventDefault(); tryUnlock($('pass').value); });
+  $('unlock').addEventListener('cancel', function(e){ e.preventDefault(); });
+  $('lockBtn').onclick = function(){
+    if (!confirm('Lock this device? Its saved passphrase and local copy will be cleared. Your cloud data is not deleted.')) return;
+    try { localStorage.removeItem(PASS_KEY); localStorage.removeItem(KEY); } catch(e){}
+    location.reload();
+  };
+
+  render();
+  if (typeof firebase === 'undefined' || !window.crypto || !crypto.subtle){
+    setSync('Saved in this browser only.');
+    refreshAll();
+  } else {
+    docRef = firebase.firestore().collection('apify-tracker').doc('data');
+    var saved = null; try { saved = localStorage.getItem(PASS_KEY); } catch(e){}
+    if (saved) tryUnlock(saved);
+    else { setSync('Locked.'); $('unlock').showModal(); }
+  }
+  setInterval(function(){ if (!accounts.some(function(a){ return a.loading; })) render(); }, 30000);
+})();
+</script>
+</body>
+</html>
