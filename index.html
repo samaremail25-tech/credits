@@ -151,7 +151,7 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
 
 <dialog id="dlg">
   <form method="dialog" class="dlg" id="form" autocomplete="off">
-    <h2>Add account</h2>
+    <h2 id="dlgTitle">Add account</h2>
     <p>Find the token in Apify Console under Settings, then Integrations.</p>
     <div class="field"><label for="email">Gmail account</label><input id="email" type="text" autocapitalize="off" spellcheck="false" placeholder="samaremail25 or samaremail25@gmail.com" required></div>
     <div class="field"><label for="token">Apify API token</label><input id="token" type="password" placeholder="apify_api_..." required></div>
@@ -301,6 +301,7 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
   }
 
   // ---- Render ----
+  var ICON_PENCIL = '<svg class="i" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   var ICON_EYE = '<svg class="i" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
   var ICON_EYEOFF = '<svg class="i" viewBox="0 0 24 24"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19c-6.5 0-10-7-10-7a17.7 17.7 0 0 1 4.1-5"/><path d="M9.9 5.2A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17.8 17.8 0 0 1-2.2 3.2"/><path d="M1 1l22 22"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
   var ICON_COPY = '<svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
@@ -326,6 +327,7 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
   function card(a){
     var h = '<div class="card"><div class="card-top"><div class="acct"><div class="acct-name">' + esc(a.email) + '</div>';
     h += '</div><div class="icons">';
+    h += '<button class="ib" data-act="edit" data-id="' + a.id + '" aria-label="Edit ' + esc(a.email) + '" title="Edit">' + ICON_PENCIL + '</button>';
     h += '<button class="ib" data-act="refresh" data-id="' + a.id + '" aria-label="Refresh ' + esc(a.email) + '"' + (a.loading ? ' disabled' : '') + '>' + (a.loading ? ICON_REFRESH.replace('class="i"', 'class="i spin"') : ICON_REFRESH) + '</button>';
     h += '<button class="ib del" data-act="remove" data-id="' + a.id + '" aria-label="Remove ' + esc(a.email) + '">' + ICON_TRASH + '</button></div></div>';
     h += tokenRow(a);
@@ -403,7 +405,15 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
   $('qClear').onclick = function(){ $('q').value = ''; query = ''; render(); $('q').focus(); };
   $('cancel').onclick = function(){ $('dlg').close(); };
 
-  function openDlg(){ $('form').reset(); $('dlgErr').textContent = ''; $('dlg').showModal(); $('email').focus(); }
+  var editingId = null;
+  function openDlg(acc){
+    editingId = acc ? acc.id : null;
+    $('form').reset(); $('dlgErr').textContent = '';
+    $('dlgTitle').textContent = acc ? 'Edit account' : 'Add account';
+    $('save').textContent = acc ? 'Save changes' : 'Save account';
+    if (acc){ $('email').value = acc.email; $('token').value = acc.token; }
+    $('dlg').showModal(); $('email').focus();
+  }
 
   $('form').addEventListener('submit', function(e){
     e.preventDefault();
@@ -411,13 +421,22 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
     if (!email || !token) return;
     if (email.indexOf('@') === -1) email += '@gmail.com';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ $('dlgErr').textContent = 'Enter a valid Gmail name or full email address.'; return; }
-    if (accounts.some(function(a){ return a.email.toLowerCase() === email.toLowerCase(); })){
+    if (accounts.some(function(a){ return a.id !== editingId && a.email.toLowerCase() === email.toLowerCase(); })){
       $('dlgErr').textContent = 'This account is already in your list.'; return;
     }
-    if (accounts.some(function(a){ return a.token === token; })){
+    if (accounts.some(function(a){ return a.id !== editingId && a.token === token; })){
       $('dlgErr').textContent = 'This token is already used by another account.'; return;
     }
     var acc = { id:'a' + Date.now() + Math.random().toString(36).slice(2,6), email:email, token:token, data:null, fetchedAt:0, error:null, loading:false };
+    if (editingId){
+      var ex = accounts.filter(function(a){ return a.id === editingId; })[0];
+      if (ex){
+        if (ex.token !== token){ ex.data = null; ex.fetchedAt = 0; ex.error = null; }
+        ex.email = email; ex.token = token;
+        editingId = null; save(); $('dlg').close(); render(); fetchOne(ex); toast('Account updated');
+        return;
+      }
+    }
     accounts.push(acc); save(); $('dlg').close(); render(); fetchOne(acc);
   });
 
@@ -426,6 +445,7 @@ dialog::backdrop{background:rgba(22,24,29,.4)}
     var act = el.getAttribute('data-act'), id = el.getAttribute('data-id');
     var acc = accounts.filter(function(a){ return a.id === id; })[0];
     if (act === 'add') openDlg();
+    else if (act === 'edit' && acc) openDlg(acc);
     else if (act === 'refresh' && acc) fetchOne(acc);
     else if (act === 'toggle-token' && acc){ acc.showToken = !acc.showToken; render(); }
     else if (act === 'copy-token' && acc) copyText(acc.token);
